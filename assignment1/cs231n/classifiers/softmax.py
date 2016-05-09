@@ -35,6 +35,11 @@ def softmax_loss_naive(W, X, y, reg):
   num_train = X.shape[0]
 
   scores_matrix = np.dot(X,W) # dims are (N,C). compute once and for all
+  # due to exponentials there is a huge risk of numerical blow-up
+  # in order to avoid this we have to shift all the values so that the highest
+  # number is 0
+  stabilizer = np.amax(scores_matrix, axis=1)
+  scores_matrix -= stabilizer.reshape(num_train, -1)
   exp_xv = np.exp(scores_matrix)
   exp_xw_sum = np.sum(exp_xv, axis = 1)
 
@@ -81,7 +86,9 @@ def softmax_loss_vectorized(W, X, y, reg):
   # here, it is easy to run into numeric instability. Don't forget the        #
   # regularization!                                                           #
   #############################################################################
-  pass
+  scores_matrix = np.dot(X,W) # dims are (N,C). compute once and for all
+  exp_xv = np.exp(scores_matrix)
+  exp_xw_sum = np.sum(exp_xv, axis = 1)
   #############################################################################
   #                          END OF YOUR CODE                                 #
   #############################################################################
