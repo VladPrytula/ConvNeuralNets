@@ -31,14 +31,21 @@ def softmax_loss_naive(W, X, y, reg):
   #############################################################################
   # first let us define the dimentions for the loops
   # number of classes, i.e. L_i, i \in [1,C]
+  num_classes = W.shape[1]
   num_train = X.shape[0]
 
   scores_matrix = np.dot(X,W) # dims are (N,C). compute once and for all
-  exp_xw_sum = np.sum(np.exp(scores_matrix), axis = 1)
+  exp_xv = np.exp(scores_matrix)
+  exp_xw_sum = np.sum(exp_xv, axis = 1)
 
   for i in xrange(num_train):
     correct_class_score = scores_matrix[i,y[i]]
     loss += - correct_class_score + np.log(exp_xw_sum[i])
+
+    for j in xrange(num_classes):
+        dW[:,j] += 1.0/(exp_xw_sum[i])*exp_xv[i,j]*X[i,:]
+        if j == y[i]:
+            dW[:,j] -= X[i,:]
 
   #Right now the loss is a sum over all training examples, but we want it
   # to be an average instead so we divide by num_train.
