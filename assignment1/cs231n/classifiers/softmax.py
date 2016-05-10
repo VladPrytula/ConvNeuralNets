@@ -100,13 +100,13 @@ def softmax_loss_vectorized(W, X, y, reg):
   # in order to compute the coefficient matrix (without taking into accout y_i
   # case we will use a nice and fast np operation np.einsum
   coefficient_matrix = np.einsum('ij,i->ij', exp_xw, exp_xw_sum_1)
-  print("coef matrix shape " + str(coefficient_matrix.shape)) # must be (N,C)
+  # print("coef matrix shape " + str(coefficient_matrix.shape)) # must be (N,C)
 
   # at this step we have to adjust for the y_i case
   coefficient_matrix[np.arange(num_train),y] -= 1
-  print("coef matrix " + str(coefficient_matrix.shape))
-  print(coefficient_matrix[2,3])
-  print(exp_xw_sum[2]*exp_xw[2,3])
+  # print("coef matrix " + str(coefficient_matrix.shape))
+  # print(coefficient_matrix[2,3])
+  # print(exp_xw_sum[2]*exp_xw[2,3])
   dW = np.dot(X.T, coefficient_matrix)
   # print(dW)
   # print(dW.shape)
