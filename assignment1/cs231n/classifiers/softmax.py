@@ -79,6 +79,7 @@ def softmax_loss_vectorized(W, X, y, reg):
   # Initialize the loss and gradient to zero.
   loss = 0.0
   dW = np.zeros_like(W)
+  num_train = X.shape[0]
 
   #############################################################################
   # TODO: Compute the softmax loss and its gradient using no explicit loops.  #
@@ -87,11 +88,37 @@ def softmax_loss_vectorized(W, X, y, reg):
   # regularization!                                                           #
   #############################################################################
   scores_matrix = np.dot(X,W) # dims are (N,C). compute once and for all
-  exp_xv = np.exp(scores_matrix)
-  exp_xw_sum = np.sum(exp_xv, axis = 1)
+  stabilizer = np.amax(scores_matrix, axis=1)
+  scores_matrix -= stabilizer.reshape(num_train, -1)
+
+  exp_xw = np.exp(scores_matrix)
+  exp_xw_sum = np.sum(exp_xw, axis = 1)
+  exp_xw_sum_1 = 1.0/exp_xw_sum
+  sum_adjust = np.sum(scores_matrix[np.arange(num_train),y])
+  loss = -sum_adjust + np.sum(np.log(exp_xw_sum))
+  # print(loss)
+  # in order to compute the coefficient matrix (without taking into accout y_i
+  # case we will use a nice and fast np operation np.einsum
+  coefficient_matrix = np.einsum('ij,i->ij', exp_xw, exp_xw_sum_1)
+  print("coef matrix shape " + str(coefficient_matrix.shape)) # must be (N,C)
+
+  # at this step we have to adjust for the y_i case
+  coefficient_matrix[np.arange(num_train),y] -= 1
+  print("coef matrix " + str(coefficient_matrix.shape))
+  print(coefficient_matrix[2,3])
+  print(exp_xw_sum[2]*exp_xw[2,3])
+  dW = np.dot(X.T, coefficient_matrix)
+  # print(dW)
+  # print(dW.shape)
+  loss /= num_train
+  loss += 0.5 * reg * np.sum(W * W)
+
+  dW /= num_train
+
+  # Add regularization to the loss.
+  dW += reg*W
   #############################################################################
   #                          END OF YOUR CODE                                 #
   #############################################################################
 
   return loss, dW
-
