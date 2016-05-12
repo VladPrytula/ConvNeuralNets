@@ -74,17 +74,41 @@ class TwoLayerNet(object):
     # Store the result in the scores variable, which should be an array of      #
     # shape (N, C).                                                             #
     #############################################################################
-    pass
+    ReLU = lambda x: np.maximum(0, x)
+
+    # compute the matrix for hidden layer after ReLU appliaction
+    hidden_output = ReLU(np.dot(X,W1+ b1))
+    print(hidden_output.shape)
+    print(hidden_output)
+    # socres on the output layer
+    scores =  np.dot(hidden_output,W2 + b2)
+    print(scores.shape)
+    print(scores)
     #############################################################################
     #                              END OF YOUR CODE                             #
     #############################################################################
-    
+
     # If the targets are not given then jump out, we're done
     if y is None:
       return scores
 
     # Compute the loss
     loss = None
+
+    # in order to compute loss we could use allready implemented soft_max
+    # vectorized but will use the explicit approach here
+    # stabilizer = np.amax(scores_matrix, axis=1)
+    # scores_matrix -= stabilizer.reshape(num_train, -1)
+
+    exp_xw = np.exp(scores)
+    print(exp_xw)
+    exp_xw_sum = np.sum(exp_xw, axis = 1)
+    sum_adjust = np.sum(scores[np.arange(N),y])
+    loss = -sum_adjust + np.sum(np.log(exp_xw_sum))
+
+    loss /= N
+    loss += 0.5 * reg * np.sum(W1 * W1)
+    loss += 0.5 * reg * np.sum(W2 * W2)
     #############################################################################
     # TODO: Finish the forward pass, and compute the loss. This should include  #
     # both the data loss and L2 regularization for W1 and W2. Store the result  #
