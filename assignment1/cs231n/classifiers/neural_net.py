@@ -119,7 +119,7 @@ class TwoLayerNet(object):
 
     # compute the loss: average cross-entropy loss and regularization
     data_loss = np.sum(corect_logprobs)/N
-    reg_loss = 0.5 * reg * np.sum(W1 * W1) + 0.5 * reg * np.sum(W2 * W2)
+    reg_loss = reg * np.sum(W1 * W1) + reg * np.sum(W2 * W2)
     loss = data_loss + reg_loss
     #############################################################################
     #                              END OF YOUR CODE                             #
