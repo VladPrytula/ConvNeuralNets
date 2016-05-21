@@ -78,10 +78,19 @@ class TwoLayerNet(object):
     # TODO: Implement the forward pass for the two-layer net, computing the    #
     # class scores for X and storing them in the scores variable.              #
     ############################################################################
+    # for testing purposes I wll substitut this with affine_relu forward
     af1_out, af1_cache = affine_forward(X, self.params['W1'], self.params['b1'])
     relu_output, relu_cache = relu_forward(af1_out)
-    af2_out, af2_cache = affine_forward(relu_output,self.params['W2'],
+    # affine_relu_forward gives different result
+    # relu_output, relu_cache = affine_relu_forward(X, self.params['W1'],\self.params['b1'])
+    af2_out, af2_cache = affine_forward(relu_output,self.params['W2'],\
                                         self.params['b2'])
+
+    # test_ar, _ = affine_relu_forward(X, self.params['W1'], self.params['b1'])
+    # test, _ = affine_forward(test_ar,self.params['W2'],\
+    #                                     self.params['b2'])
+
+    # print np.abs(af2_out - test).sum()
     ############################################################################
     #                             END OF YOUR CODE                             #
     ############################################################################
@@ -99,7 +108,7 @@ class TwoLayerNet(object):
     # self.params[k]. Don't forget to add L2 regularization!                   #
     #                                                                          #
     # NOTE: To ensure that your implementation matches ours and you pass the   #
-    # automated tests, make sure that your L2 regularization includes a factor #
+     # automated tests, make sure that your L2 regularization includes a factor #
     # of 0.5 to simplify the expression for the gradient.                      #
     ############################################################################
     loss, dL = softmax_loss(af2_out, y)
@@ -130,7 +139,11 @@ class TwoLayerNet(object):
 
 class FullyConnectedNet(object):
   """
-  A fully-connected neural network with an arbitrary number of hidden layers,
+  A fully-connected neural network with an arbitrary nauffine_forward(relu_output,self.params['W2'],\
+                                        self.params['b2'])
+ffine_forward(relu_output,self.params['W2'],\
+                                        self.params['b2'])
+umber of hidden layers,
   ReLU nonlinearities, and a softmax loss function. This will also implement
   dropout and batch normalization as options. For a network with L layers,
   the architecture will be
@@ -186,7 +199,25 @@ class FullyConnectedNet(object):
     # beta2, etc. Scale parameters should be initialized to one and shift      #
     # parameters should be initialized to zero.                                #
     ############################################################################
-    pass
+    # First check if hidden_dims is a list
+    if type(hidden_dims) != list:
+        raise ValueError("hidden_dim must be a list")
+
+    # we must not forget that input layer and output layer are given
+    # independeingly of the hidden layers. I will initialize them separately,
+    # but maybe there is an alternative approach
+    self.params['W1'] = weight_scale*np.random.randn(input_dim,hidden_dims[0])
+    self.params['b1'] = np.zeros(hidden_dims[0])
+    self.params['W'+str(self.num_layers)] = \
+       weight_scale*np.random.randn(hidden_dims[self.num_layers-2],num_classes)
+    self.params['b'+str(self.num_layers)] = np.zeros(num_classes)
+
+    for i in range(2, self.num_layers):
+       self.params["W"+str(i)] = \
+           weight_scale * np.random.randn(hidden_dims[i-2],hidden_dims[i-1])
+       self.params["b"+str(i)] = \
+           np.zeros(hidden_dims[i-1])
+
     ############################################################################
     #                             END OF YOUR CODE                             #
     ############################################################################
@@ -244,7 +275,26 @@ class FullyConnectedNet(object):
     # self.bn_params[1] to the forward pass for the second batch normalization #
     # layer, etc.                                                              #
     ############################################################################
-    pass
+    # TODO: what if I will push layer_i_out and layer_i_cash to
+    # pushdown stack
+    import Queue
+
+    stack = Queue.LifoQueue()
+
+    out, cache = affine_relu_forward(X, self.params['W1'], self.params['b1'])
+    stack.put(cache)
+
+    for i in range(2, self.num_layers):
+        out, cache = affine_relu_forward(out, self.params['W'+str(i)],\
+                                         self.params['b'+str(i)])
+        stack.put(cache)
+
+
+
+    scores, cache = affine_forward(out, self.params['W'+str(self.num_layers)],\
+                                        self.params['b'+str(self.num_layers)])
+    stack.put(cache)
+
     ############################################################################
     #                             END OF YOUR CODE                             #
     ############################################################################
@@ -267,7 +317,34 @@ class FullyConnectedNet(object):
     # automated tests, make sure that your L2 regularization includes a factor #
     # of 0.5 to simplify the expression for the gradient.                      #
     ############################################################################
-    pass
+    loss, dL = softmax_loss(scores, y)
+    for i in range(1, self.num_layers+1):
+        loss += 0.5*self.reg*np.sum(self.params["W"+str(i)]**2)
+
+
+    # Backprop step. Let us expclicit back step for the last layer
+    dx, dW, db = affine_backward(dL,stack.get())
+    dW += self.reg*self.params['W'+str(self.num_layers)]
+
+    grads.update({'W'+str(self.num_layers): dW,
+                  'b'+str(self.num_layers): db})
+
+    for i in range(self.num_layers-1, 0, -1):
+        dx, dW, db = affine_relu_backward(dx, stack.get())
+        dW += self.reg*self.params['W'+str(i)]
+
+        grads.update({'W'+str(i): dW,
+                    'b'+str(i): db})
+
+    # propagate throught the final layer separately since it is only Affine
+    # transformation
+    # dx, dW, db = affine_backward(dx,stack.get())
+    # dW += self.reg*self.params['W'+str(self.num_layers)]
+
+    # grads.update({'W1': dW,
+    #               'b1': db})
+
+
     ############################################################################
     #                             END OF YOUR CODE                             #
     ############################################################################
