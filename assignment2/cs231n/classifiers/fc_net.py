@@ -218,6 +218,13 @@ umber of hidden layers,
        self.params["b"+str(i)] = \
            np.zeros(hidden_dims[i-1])
 
+    # in case of batch normalization we have to initialize gamma, beta params
+    if self.use_batchnorm:
+        for i in range(1,self.num_layers):
+            # init scale params to (gamma=1,beta=0)
+            self.params['gamma'+str(i)] = np.ones(hidden_dims[i-1])
+            self.params['beta'+str(i)]  = np.zeros(hidden_dims[i-1])
+
     ############################################################################
     #                             END OF YOUR CODE                             #
     ############################################################################
@@ -275,25 +282,53 @@ umber of hidden layers,
     # self.bn_params[1] to the forward pass for the second batch normalization #
     # layer, etc.                                                              #
     ############################################################################
-    # TODO: what if I will push layer_i_out and layer_i_cash to
-    # pushdown stack
     import Queue
 
     stack = Queue.LifoQueue()
+    out = X
 
-    out, cache = affine_relu_forward(X, self.params['W1'], self.params['b1'])
-    stack.put(cache)
+    if self.use_batchnorm:
+      for i in range(1, self.num_layers):
+        # print i
+        out, cache = affine_forward(out, self.params['W'+str(i)], \
+                                   self.params['b'+str(i)])
+        stack.put(cache)
 
-    for i in range(2, self.num_layers):
-        out, cache = affine_relu_forward(out, self.params['W'+str(i)],\
-                                         self.params['b'+str(i)])
+        # we have to add batchnorm layer after affine and before the ReLU
+        # gamma and betta are the params that we have to learn.
+        # TODO: missing clarity here
+        # print self.bn_params[i-1]
+        # print self.params['gamma'+str(i)].shape
+        # print self.params['beta'+str(i)].shape
+        out, cache = batchnorm_forward(out, self.params['gamma'+str(i)],
+                                        self.params['beta'+str(i)],
+                                       self.bn_params[i-1])
+        stack.put(cache)
+
+        out, cache = relu_forward(out)
         stack.put(cache)
 
 
 
-    scores, cache = affine_forward(out, self.params['W'+str(self.num_layers)],\
-                                        self.params['b'+str(self.num_layers)])
-    stack.put(cache)
+      scores, cache = affine_forward(out, self.params['W'+str(self.num_layers)],\
+                                          self.params['b'+str(self.num_layers)])
+      stack.put(cache)
+    else:
+      # TODO: what if I will push layer_i_out and layer_i_cash to
+      # pushdown stack
+      out, cache = affine_relu_forward(X, self.params['W1'], self.params['b1'])
+      stack.put(cache)
+
+      for i in range(2, self.num_layers):
+          out, cache = affine_relu_forward(out, self.params['W'+str(i)],\
+                                          self.params['b'+str(i)])
+          stack.put(cache)
+
+
+
+      scores, cache = affine_forward(out, self.params['W'+str(self.num_layers)],\
+                                          self.params['b'+str(self.num_layers)])
+      stack.put(cache)
 
     ############################################################################
     #                             END OF YOUR CODE                             #
@@ -330,23 +365,31 @@ umber of hidden layers,
                   'b'+str(self.num_layers): db})
 
     for i in range(self.num_layers-1, 0, -1):
+      if self.use_batchnorm:
+        dx = relu_backward(dx, stack.get()) # we dont need dW, db here??
+        dx, dgamma, dbeta = batchnorm_backward_alt(dx, stack.get())
+        dx, dW, db = affine_backward(dx, stack.get())
+        dW += self.reg*self.params['W'+str(i)]
+        # the following two line are an ERROR : we do not "regularize" gamma
+        # beta, so there is no summation
+        # dgamma += self.params['gamma'+str(i)]
+        # dbeta += self.params['beta'+str(i)]
+
+        grads.update({'W'+str(i): dW,
+                      'b'+str(i): db,
+                      'gamma'+str(i): dgamma,
+                      'beta'+str(i): dbeta})
+
+      else:
         dx, dW, db = affine_relu_backward(dx, stack.get())
         dW += self.reg*self.params['W'+str(i)]
 
         grads.update({'W'+str(i): dW,
-                    'b'+str(i): db})
-
-    # propagate throught the final layer separately since it is only Affine
-    # transformation
-    # dx, dW, db = affine_backward(dx,stack.get())
-    # dW += self.reg*self.params['W'+str(self.num_layers)]
-
-    # grads.update({'W1': dW,
-    #               'b1': db})
-
+                     'b'+str(i): db})
 
     ############################################################################
     #                             END OF YOUR CODE                             #
     ############################################################################
 
     return loss, grads
+
