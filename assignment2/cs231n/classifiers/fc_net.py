@@ -313,6 +313,25 @@ umber of hidden layers,
       scores, cache = affine_forward(out, self.params['W'+str(self.num_layers)],\
                                           self.params['b'+str(self.num_layers)])
       stack.put(cache)
+    elif self.use_dropout:
+      # I will implement it in a dirty way to explicitely separate case with
+      # batch_norm and case with dropout
+      for i in range(1, self.num_layers):
+        # print i
+        out, cache = affine_forward(out, self.params['W'+str(i)], \
+                                   self.params['b'+str(i)])
+        stack.put(cache)
+
+        out, cache =dropout_forward(out,self.dropout_param)
+        stack.put(cache)
+
+        out, cache = relu_forward(out)
+        stack.put(cache)
+
+
+      scores, cache = affine_forward(out, self.params['W'+str(self.num_layers)],\
+                                          self.params['b'+str(self.num_layers)])
+      stack.put(cache)
     else:
       # TODO: what if I will push layer_i_out and layer_i_cash to
       # pushdown stack
@@ -379,6 +398,19 @@ umber of hidden layers,
                       'b'+str(i): db,
                       'gamma'+str(i): dgamma,
                       'beta'+str(i): dbeta})
+
+      elif self.use_dropout:
+        dx = relu_backward(dx, stack.get()) # we dont need dW, db here??
+        dx =dropout_backward(dx, stack.get())
+        dx, dW, db = affine_backward(dx, stack.get())
+        dW += self.reg*self.params['W'+str(i)]
+        # the following two line are an ERROR : we do not "regularize" gamma
+        # beta, so there is no summation
+        # dgamma += self.params['gamma'+str(i)]
+        # dbeta += self.params['beta'+str(i)]
+
+        grads.update({'W'+str(i): dW,
+                      'b'+str(i): db })
 
       else:
         dx, dW, db = affine_relu_backward(dx, stack.get())
