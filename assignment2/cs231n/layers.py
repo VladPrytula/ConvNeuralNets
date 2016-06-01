@@ -446,11 +446,40 @@ def conv_forward_naive(x, w, b, conv_param):
   # TODO: Implement the convolutional forward pass.                           #
   # Hint: you can use the function np.pad for padding.                        #
   #############################################################################
-  pass
+  stride = conv_param['stride']
+  pad = conv_param['pad']
+  N, C, H, W = x.shape
+  F, _, HH, WW = w.shape
+
+  npad = ((0,0),(0,0),(pad,pad),(pad,pad)) # we are padding only H, and W
+  padded_input = np.pad(x, pad_width=npad, mode='constant', constant_values=0)
+
+  # define output height and width based on the formulas in docstring
+  h_out =  1 + (H + 2 * pad - HH) / stride
+  w_out =  1 + (W + 2 * pad - HH) / stride
+  out = np.zeros((N,F,h_out,w_out))
+  print str(h_out) + "  h_out"
+  print str(out.shape) + "    shape"
+  print str(w_out) + "  w_out"
+  print str(stride) + "  stride"
+  print str(F) + "  F"
+
+  # TODO: it looks like I have to itereate over the number of filters also. I do
+  # not know how to make it looplsess without im2col implementation
+  for n_step in np.arange(N):
+    for f in np.arange(F):
+      h_index=0
+      for h_step in np.arange(H,step=stride):
+        w_index=0
+        for w_step in np.arange(W,step=stride):
+          out[n_step,f,h_index,w_index]=np.sum(padded_input[n_step,:,h_step:h_step+HH, w_step:w_step+WW]*w[f,:,:,:])+b[f]
+          w_index+=1
+        h_index+=1
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
   cache = (x, w, b, conv_param)
+
   return out, cache
 
 
