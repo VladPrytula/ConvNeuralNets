@@ -139,11 +139,7 @@ class TwoLayerNet(object):
 
 class FullyConnectedNet(object):
   """
-  A fully-connected neural network with an arbitrary nauffine_forward(relu_output,self.params['W2'],\
-                                        self.params['b2'])
-ffine_forward(relu_output,self.params['W2'],\
-                                        self.params['b2'])
-umber of hidden layers,
+  A fully-connected neural network with an arbitrary number of hidden layers,
   ReLU nonlinearities, and a softmax loss function. This will also implement
   dropout and batch normalization as options. For a network with L layers,
   the architecture will be
@@ -245,7 +241,7 @@ umber of hidden layers,
     # pass of the second batch normalization layer, etc.
     self.bn_params = []
     if self.use_batchnorm:
-      self.bn_params = [{'mode': 'train'} for i in xrange(self.num_layers - 1)]
+      self.bn_params = [{'mode': 'train'} for i in np.arange(self.num_layers - 1)]
 
     # Cast all parameters to the correct datatype
     for k, v in self.params.iteritems():
