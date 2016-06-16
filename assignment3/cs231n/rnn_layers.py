@@ -1,9 +1,11 @@
 import numpy as np
 
+
 """
 This file defines layer types that are commonly used for recurrent neural
 networks.
 """
+
 
 def rnn_step_forward(x, prev_h, Wx, Wh, b):
     """
@@ -41,12 +43,11 @@ def rnn_step_forward(x, prev_h, Wx, Wh, b):
     # TODO : it looks like we do not need output vectore here since we might have
     # multiple layers?
     # y = np.dot(self.W_hy, self.h)
-    cache = (x, Wx, Wh, b, prev_h, next_h)
+    cache = (x, Wx, Wh, prev_h, next_h)
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
     return next_h, cache
-
 
 def rnn_step_backward(dnext_h, cache):
     """
@@ -71,11 +72,9 @@ def rnn_step_backward(dnext_h, cache):
     # of the output value from tanh.                                             #
     ##############################################################################
     # unroll cached values
-    x, Wx, Wh, b, prev_h, next_h = cache
-
+    x, Wx, Wh, prev_h, next_h = cache
     # compute the derivative of tanh
     Xi = (1 - next_h ** 2) * dnext_h
-
     # compute grads
     dx = np.dot(Xi, Wx.T)
     db = np.sum(Xi, axis=0)
@@ -112,15 +111,19 @@ def rnn_forward(x, h0, Wx, Wh, b):
     # input data. You should use the rnn_step_forward function that you defined  #
     # above.                                                                     #
     ##############################################################################
+    # IMPORTANT: effectively what is called h0 in the function signature is an
+    # h_{-1}.we are using it for recurent formula to get h_0:h_{T-1}. This in
+    # term means that we have to store that value in order to correctly compute
+    # the last step for backprop!!!
     H = b.shape[0]
     N, T, D = x.shape
     prev_h = h0
 
-    h = np.zeros((N,T,H))
-    cache = {}
+    h = np.zeros((N, T, H))
     for i in np.arange(T):
-        prev_h, cache[i] = rnn_step_forward(x[:,i,:], prev_h, Wx, Wh, b)
-        h [:,i,:] = prev_h
+        h[:,i,:], _ = rnn_step_forward(x[:, i, :], prev_h, Wx, Wh, b)
+        prev_h = h[:,i,:]
+    cache = (x, Wx, Wh, h,h0)
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -147,11 +150,47 @@ def rnn_backward(dh, cache):
     # sequence of data. You should use the rnn_step_backward function that you   #
     # defined above.                                                             #
     ##############################################################################
-    pass
+    N, T, H = dh.shape
+    D = cache[0].shape[2]
+    # print "N " + str(N)
+    # print "T " + str(T)
+    # print "H " + str(H)
+    # print "D " + str(D)
+    # we have to define the D first
+    dh0 = np.zeros((N, H))
+    dWx = np.zeros((D, H))
+    db = np.zeros(H)
+
+
+    # unpack cache
+    x, Wx, Wh, h, h0 = cache
+
+    # let us combine h and h_0 into one bigger h_memory.shape = N, T+1, H
+    h_memory = np.zeros((h.shape[0], h.shape[1]+1, h.shape[2]))
+    h_memory[:,1:T+1,:] = h
+    h_memory[:,0,:] = h0
+
+    dx = np.zeros_like(x)
+
+    dWh = np.zeros_like(Wh)
+
+    for i in reversed(range(T)):
+        # we will get cached values from dict of cache
+        # TODO : here the funny thing is that for dh0 we have to return only the
+        # final state, and not intermidiate dhs... This is due to the fact that
+        # we
+        dx[:,i,:], dh0, dWx_temp, dWh_t, db_temp = \
+            rnn_step_backward(dh[:,i,:]+ dh0, \
+                              (x[:,i,:], Wx, Wh, h_memory[:,i,:],h_memory[:,i+1,:]))
+        # print dWx.shape
+        # print dWx_temp.shape
+        dWx += dWx_temp
+        dWh += dWh_t
+        db += db_temp
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
-    return dx, dh0, dWx, dWh, db
+    return dx, dh0, dWx,dWh, db
 
 
 def word_embedding_forward(x, W):
@@ -173,7 +212,7 @@ def word_embedding_forward(x, W):
     ##############################################################################
     # TODO: Implement the forward pass for word embeddings.                      #
     #                                                                            #
-    # HINT: This should be very simple.                                          #
+    # HINT: This should be very simple.:                                         #
     ##############################################################################
     pass
     ##############################################################################
@@ -186,7 +225,7 @@ def word_embedding_backward(dout, cache):
     """
     Backward pass for word embeddings. We cannot back-propagate into the words
     since they are integers, so we only return gradient for the word embedding
-    matrix.
+     matrix.
 
     HINT: Look up the function np.add.at
 
@@ -207,7 +246,7 @@ def word_embedding_backward(dout, cache):
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
-    return dW
+    # return dW
 
 
 def sigmoid(x):
