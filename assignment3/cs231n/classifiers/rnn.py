@@ -15,7 +15,7 @@ class CaptioningRNN(object):
 
   Note that we don't use any regularization for the CaptioningRNN.
   """
-  
+
   def __init__(self, word_to_idx, input_dim=512, wordvec_dim=128,
                hidden_dim=128, cell_type='rnn', dtype=np.float32):
     """
@@ -33,23 +33,23 @@ class CaptioningRNN(object):
     """
     if cell_type not in {'rnn', 'lstm'}:
       raise ValueError('Invalid cell_type "%s"' % cell_type)
-    
+
     self.cell_type = cell_type
     self.dtype = dtype
     self.word_to_idx = word_to_idx
     self.idx_to_word = {i: w for w, i in word_to_idx.iteritems()}
     self.params = {}
-    
+
     vocab_size = len(word_to_idx)
 
     self._null = word_to_idx['<NULL>']
     self._start = word_to_idx.get('<START>', None)
     self._end = word_to_idx.get('<END>', None)
-    
+
     # Initialize word vectors
     self.params['W_embed'] = np.random.randn(vocab_size, wordvec_dim)
     self.params['W_embed'] /= 100
-    
+
     # Initialize CNN -> hidden state projection parameters
     self.params['W_proj'] = np.random.randn(input_dim, hidden_dim)
     self.params['W_proj'] /= np.sqrt(input_dim)
@@ -62,12 +62,12 @@ class CaptioningRNN(object):
     self.params['Wh'] = np.random.randn(hidden_dim, dim_mul * hidden_dim)
     self.params['Wh'] /= np.sqrt(hidden_dim)
     self.params['b'] = np.zeros(dim_mul * hidden_dim)
-    
+
     # Initialize output to vocab weights
     self.params['W_vocab'] = np.random.randn(hidden_dim, vocab_size)
     self.params['W_vocab'] /= np.sqrt(hidden_dim)
     self.params['b_vocab'] = np.zeros(vocab_size)
-      
+
     # Cast parameters to correct dtype
     for k, v in self.params.iteritems():
       self.params[k] = v.astype(self.dtype)
@@ -78,12 +78,12 @@ class CaptioningRNN(object):
     Compute training-time loss for the RNN. We input image features and
     ground-truth captions for those images, and use an RNN (or LSTM) to compute
     loss and gradients on all parameters.
-    
+
     Inputs:
     - features: Input image features, of shape (N, D)
     - captions: Ground-truth captions; an integer array of shape (N, T) where
       each element is in the range 0 <= y[i, t] < V
-      
+
     Returns a tuple of:
     - loss: Scalar loss
     - grads: Dictionary of gradients parallel to self.params
@@ -96,14 +96,14 @@ class CaptioningRNN(object):
     # token, and the first element of captions_out will be the first word.
     captions_in = captions[:, :-1]
     captions_out = captions[:, 1:]
-    
-    # You'll need this 
+
+    # You'll need this
     mask = (captions_out != self._null)
 
     # Weight and bias for the affine transform from image features to initial
     # hidden state
     W_proj, b_proj = self.params['W_proj'], self.params['b_proj']
-    
+
     # Word embedding matrix
     W_embed = self.params['W_embed']
 
@@ -112,7 +112,7 @@ class CaptioningRNN(object):
 
     # Weight and bias for the hidden-to-vocab transformation.
     W_vocab, b_vocab = self.params['W_vocab'], self.params['b_vocab']
-    
+
     loss, grads = 0.0, {}
     ############################################################################
     # TODO: Implement the forward and backward passes for the CaptioningRNN.   #
@@ -135,11 +135,62 @@ class CaptioningRNN(object):
     # defined above to store loss and gradients; grads[k] should give the      #
     # gradients for self.params[k].                                            #
     ############################################################################
-    pass
+    # (1)
+    # W_proj dims are (input_dim, hidden_dim
+    # features dims are (N, D)
+    h0 = np.dot(features, W_proj) + b_proj
+
+    # (2)
+    out_embed, cache_embed = word_embedding_forward(captions_in, W_embed)
+
+    # (3)
+    if self.cell_type == 'rnn':
+      h, cache_rnn = rnn_forward(out_embed, h0, Wx, Wh, b)
+    elif self.cell_type == 'lstm':
+      pass
+    else:
+      raise ValueError('%s cell type is not supported' %(self.cell_type))
+
+    # (4)
+    out_affine, cache_affine = \
+        scores, cache_scores = temporal_affine_forward(h, W_vocab, b_vocab)
+
+    # (5)
+    loss, dx_scores = temporal_softmax_loss(out_affine, captions_out, mask)
+
+    # backward from scores (5) --> (4)
+    dh, dW_vocab, db_vocab = temporal_affine_backward(dx_scores, cache_affine)
+
+    # (4) --> (3)
+    if self.cell_type == 'rnn':
+      dx, dh0, dWx, dWh, db = rnn_backward(dh,cache_rnn)
+    elif self.cell_type == 'lstm':
+      pass
+    else:
+      raise ValueError('%s cell type is not supported during bacward pass' \
+                       %(self.cell_type))
+
+    # (3) --> (2)
+    dW_embed = word_embedding_backward(dx, cache_embed)
+
+    # (2) --> (1)
+    dW_proj = np.dot(features.T, dh0)
+    db_proj = np.sum(dh0, axis=0)
+
+    # combine output dict
+    grads = dict.fromkeys(self.params)
+    grads['W_proj'] = dW_proj
+    grads['b_proj'] = db_proj
+    grads['W_embed'] = dW_embed
+    grads['Wx'] = dWx
+    grads['Wh'] = dWh
+    grads['b'] = db
+    grads['W_vocab'] = dW_vocab
+    grads['b_vocab'] = db_vocab
     ############################################################################
     #                             END OF YOUR CODE                             #
     ############################################################################
-    
+
     return loss, grads
 
 
@@ -164,8 +215,8 @@ class CaptioningRNN(object):
 
     Returns:
     - captions: Array of shape (N, max_length) giving sampled captions,
-      where each element is an integer in the range [0, V). The first element
-      of captions should be the first sampled word, not the <START> token.
+    where each element is an integer in the range [0, V). The first element
+    of captions should be the first sampled word, not the <START> token.
     """
     N = features.shape[0]
     captions = self._null * np.ones((N, max_length), dtype=np.int32)
@@ -175,7 +226,7 @@ class CaptioningRNN(object):
     W_embed = self.params['W_embed']
     Wx, Wh, b = self.params['Wx'], self.params['Wh'], self.params['b']
     W_vocab, b_vocab = self.params['W_vocab'], self.params['b_vocab']
-    
+
     ###########################################################################
     # TODO: Implement test-time sampling for the model. You will need to      #
     # initialize the hidden state of the RNN by applying the learned affine   #
@@ -197,7 +248,44 @@ class CaptioningRNN(object):
     # functions; you'll need to call rnn_step_forward or lstm_step_forward in #
     # a loop.                                                                 #
     ###########################################################################
-    pass
+    # (1)
+    prev_h = np.dot(features, W_proj) + b_proj
+    print prev_h.shape
+
+    # (1) embedding of the first word. It looks like this word should be <START>
+    caption_start = self._start *  np.ones((N,1), dtype=np.int32)
+    out_start, _ = word_embedding_forward(caption_start, W_embed)
+    # print out_start.shape
+
+    # The funny thing here is that since i am doing just one step at at time,
+    # effectively there is no temporal dimention, this means that we have to
+    # remove temporal dimention from the result of word_embedding_forward()
+    # function call, ie. it should not be (N,T,D) but it should be (N,D)
+    if self.cell_type == 'rnn':
+        for i in np.arange(max_length):
+            next_h, _ = rnn_step_forward(np.squeeze(out_start, axis = 1)
+                                         , prev_h, Wx, Wh, b)
+            # print next_h.shape
+            # print "prev_h shape is " + str(prev_h.shape)
+            # print "out_start shape is " + str(out_start.shape)
+            # print "Wx shape is " + str(Wx.shape)
+            # print "Wh shape is " + str(Wh.shape)
+
+            #but here (!) temporal_affine_forward() accetps only tempral
+            #variables, so lets us add it
+            scores_t, _ = temporal_affine_forward(prev_h[:,np.newaxis,:],
+                                                  W_vocab, b_vocab)
+            max_score_idx = np.squeeze(np.argmax(scores_t, axis = 2))
+            # print scores_t.shape
+            # print max_score_idx.shape
+            # print captions.shape
+            captions[:,i] = max_score_idx
+            prev_h = next_h
+    elif self.cell_type == 'lstm':
+        pass
+    else:
+        raise ValueError('%s cell type is not supported for sampling' \
+                         %(self.cell_type))
     ############################################################################
     #                             END OF YOUR CODE                             #
     ############################################################################

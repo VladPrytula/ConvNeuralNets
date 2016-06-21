@@ -214,7 +214,15 @@ def word_embedding_forward(x, W):
     #                                                                            #
     # HINT: This should be very simple.:                                         #
     ##############################################################################
-    pass
+    N, T = x.shape
+    V, D = W.shape
+
+    out = np.zeros((N,T,D))
+
+    # for t in np.arange(T):
+    #     out[:,t,:] = W[x[:,t],:]
+    out = W[x,:]
+    cache = (x, W)
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -242,11 +250,17 @@ def word_embedding_backward(dout, cache):
     #                                                                            #
     # HINT: Look up the function np.add.at                                       #
     ##############################################################################
-    pass
+    x, W = cache
+    dW = np.zeros_like(W)
+
+    # effectively this is a linear backprop. We just have to modify those
+    # elements of W that were used during the forward pass. (information comes
+    # only from them)
+    np.add.at(dW,x,dout)
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
-    # return dW
+    return dW
 
 
 def sigmoid(x):
