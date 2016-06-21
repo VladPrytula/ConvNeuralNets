@@ -250,30 +250,34 @@ class CaptioningRNN(object):
     ###########################################################################
     # (1)
     prev_h = np.dot(features, W_proj) + b_proj
-    print prev_h.shape
+    prev_h = prev_h[:,np.newaxis,:]
+    # print prev_h.shape
 
     # (1) embedding of the first word. It looks like this word should be <START>
     caption_start = self._start *  np.ones((N,1), dtype=np.int32)
     out_start, _ = word_embedding_forward(caption_start, W_embed)
     # print out_start.shape
 
-    # The funny thing here is that since i am doing just one step at at time,
+    # NOT RELEVANT: The funny thing here is that since i am doing just one step at at time,
     # effectively there is no temporal dimention, this means that we have to
     # remove temporal dimention from the result of word_embedding_forward()
     # function call, ie. it should not be (N,T,D) but it should be (N,D)
+    # The above comment is not relevant due to line 253. The correct number of
+    # dimentions is added intially
     if self.cell_type == 'rnn':
         for i in np.arange(max_length):
-            next_h, _ = rnn_step_forward(np.squeeze(out_start, axis = 1)
-                                         , prev_h, Wx, Wh, b)
+            next_h, _ = rnn_step_forward(out_start, prev_h, Wx, Wh, b)
             # print next_h.shape
             # print "prev_h shape is " + str(prev_h.shape)
             # print "out_start shape is " + str(out_start.shape)
             # print "Wx shape is " + str(Wx.shape)
             # print "Wh shape is " + str(Wh.shape)
 
-            #but here (!) temporal_affine_forward() accetps only tempral
-            #variables, so lets us add it
-            scores_t, _ = temporal_affine_forward(prev_h[:,np.newaxis,:],
+            # NOT RELEVANT ANY MORE
+            # but here (!) temporal_affine_forward() accetps only tempral
+            # variables, so lets us add it
+            # Not relevant due to line 253
+            scores_t, _ = temporal_affine_forward(prev_h,
                                                   W_vocab, b_vocab)
             max_score_idx = np.squeeze(np.argmax(scores_t, axis = 2))
             # print scores_t.shape
