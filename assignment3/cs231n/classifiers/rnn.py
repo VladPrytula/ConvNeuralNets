@@ -147,7 +147,7 @@ class CaptioningRNN(object):
     if self.cell_type == 'rnn':
       h, cache_rnn = rnn_forward(out_embed, h0, Wx, Wh, b)
     elif self.cell_type == 'lstm':
-      pass
+      h, cache_lstm = lstm_forward(out_embed, h0, Wx, Wh, b)
     else:
       raise ValueError('%s cell type is not supported' %(self.cell_type))
 
@@ -165,7 +165,7 @@ class CaptioningRNN(object):
     if self.cell_type == 'rnn':
       dx, dh0, dWx, dWh, db = rnn_backward(dh,cache_rnn)
     elif self.cell_type == 'lstm':
-      pass
+      dx, dh0, dWx, dWh, db = lstm_backward(dh, cache_lstm)
     else:
       raise ValueError('%s cell type is not supported during bacward pass' \
                        %(self.cell_type))
@@ -248,48 +248,98 @@ class CaptioningRNN(object):
     # functions; you'll need to call rnn_step_forward or lstm_step_forward in #
     # a loop.                                                                 #
     ###########################################################################
-    # (1)
-    prev_h = np.dot(features, W_proj) + b_proj
-    prev_h = prev_h[:,np.newaxis,:]
-    # print prev_h.shape
+#    # (1) embedding of the first word. It looks like this word should be <START>
+#    caption_start = self._start *  np.ones((N,1), dtype=np.int32)
+#    out_start, _ = word_embedding_forward(caption_start, W_embed)
+#    # print out_start.shape
+#
+#    # NOT RELEVANT: The funny thing here is that since i am doing just one step at at time,
+#    # effectively there is no temporal dimention, this means that we have to
+#    # remove temporal dimention from the result of word_embedding_forward()
+#    # function call, ie. it should not be (N,T,D) but it should be (N,D)
+#    # The above comment is not relevant due to line 253. The correct number of
+#    # dimentions is added intially
+#    if self.cell_type == 'rnn':
+#      # (1)
+#      prev_h = np.dot(features, W_proj) + b_proj
+#      prev_c = np.zeros_like(prev_h)
+#      prev_h = prev_h[:,np.newaxis,:]
+#      for i in np.arange(max_length):
+#            next_h, _ = rnn_step_forward(out_start, prev_h, Wx, Wh, b)
+#            # print next_h.shape
+#            # print "prev_h shape is " + str(prev_h.shape)
+#            # print "out_start shape is " + str(out_start.shape)
+#            # print "Wx shape is " + str(Wx.shape)
+#            # print "Wh shape is " + str(Wh.shape)
+#
+#            # NOT RELEVANT ANY MORE
+#            # but here (!) temporal_affine_forward() accetps only tempral
+#            # variables, so lets us add it
+#            # Not relevant due to line 253
+#            scores_t, _ = temporal_affine_forward(prev_h,
+#                                                  W_vocab, b_vocab)
+#            max_score_idx = np.squeeze(np.argmax(scores_t, axis = 2))
+#            # print scores_t.shape
+#            # print max_score_idx.shape
+#            # print captions.shape
+#            captions[:,i] = max_score_idx
+#            prev_h = next_h
+#    elif self.cell_type == 'lstm':
+#      prev_h = np.dot(features, W_proj) + b_proj
+#      prev_c = np.zeros_like(prev_h)
+#      for i in np.arange(max_length):
+#        next_h,next_c, _ = \
+#            lstm_step_forward(np.squeeze(out_start), \
+#                              prev_h, prev_c, Wx, Wh, b)
+#
+#        # now we unsqueeze (sick!) TODO: must reimplement lstm_step_forward
+#        scores_t, _ = temporal_affine_forward(prev_h[:,np.newaxis,:,],
+#                                              W_vocab, b_vocab)
+#        max_score_idx = np.squeeze(np.argmax(scores_t, axis = 2))
+#        captions[:,i] = max_score_idx
+#        prev_h = next_h
+#        prev_c = next_c
+#    else:
+#        raise ValueError('%s cell type is not supported for sampling' \
+#                         %(self.cell_type))
+    # Get first hidden state
+    h0 = np.dot(features, W_proj) + b_proj
 
-    # (1) embedding of the first word. It looks like this word should be <START>
-    caption_start = self._start *  np.ones((N,1), dtype=np.int32)
-    out_start, _ = word_embedding_forward(caption_start, W_embed)
-    # print out_start.shape
+    captions[:, 0] = self._start
+    prev_h = h0  # Previous hidden state
+    prev_c = np.zeros_like(h0)  # Previous cell state
+    # Current word (start word)
+    capt = self._start * np.ones((N, 1), dtype=np.int32)
 
-    # NOT RELEVANT: The funny thing here is that since i am doing just one step at at time,
-    # effectively there is no temporal dimention, this means that we have to
-    # remove temporal dimention from the result of word_embedding_forward()
-    # function call, ie. it should not be (N,T,D) but it should be (N,D)
-    # The above comment is not relevant due to line 253. The correct number of
-    # dimentions is added intially
-    if self.cell_type == 'rnn':
-        for i in np.arange(max_length):
-            next_h, _ = rnn_step_forward(out_start, prev_h, Wx, Wh, b)
-            # print next_h.shape
-            # print "prev_h shape is " + str(prev_h.shape)
-            # print "out_start shape is " + str(out_start.shape)
-            # print "Wx shape is " + str(Wx.shape)
-            # print "Wh shape is " + str(Wh.shape)
+    for t in xrange(max_length):  # Let's go over the sequence
 
-            # NOT RELEVANT ANY MORE
-            # but here (!) temporal_affine_forward() accetps only tempral
-            # variables, so lets us add it
-            # Not relevant due to line 253
-            scores_t, _ = temporal_affine_forward(prev_h,
-                                                  W_vocab, b_vocab)
-            max_score_idx = np.squeeze(np.argmax(scores_t, axis = 2))
-            # print scores_t.shape
-            # print max_score_idx.shape
-            # print captions.shape
-            captions[:,i] = max_score_idx
-            prev_h = next_h
-    elif self.cell_type == 'lstm':
-        pass
-    else:
-        raise ValueError('%s cell type is not supported for sampling' \
-                         %(self.cell_type))
+        word_embed, _ = word_embedding_forward(
+            capt, W_embed)  # Embedded current word
+        if self.cell_type == 'rnn':
+            # Run a step of rnn
+            h, _ = rnn_step_forward(np.squeeze(
+                word_embed), prev_h, Wx, Wh, b)
+        elif self.cell_type == 'lstm':
+            # Run a step of lstm
+            h, c, _ = lstm_step_forward(np.squeeze(
+                word_embed), prev_h, prev_c, Wx, Wh, b)
+        else:
+            raise ValueError('%s not implemented' % (self.cell_type))
+
+        # Compute the score distrib over the dictionary
+        scores, _ = temporal_affine_forward(
+            h[:, np.newaxis, :], W_vocab, b_vocab)
+        # Squeeze unecessari dimension and get the best word idx
+        idx_best = np.squeeze(np.argmax(scores, axis=2))
+        # Put it in the captions
+        captions[:, t] = idx_best
+
+        # Update the hidden state, the cell state (if lstm) and the current
+        # word
+        prev_h = h
+        if self.cell_type == 'lstm':
+            prev_c = c
+        capt = captions[:, t]
     ############################################################################
     #                             END OF YOUR CODE                             #
     ############################################################################
